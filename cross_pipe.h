@@ -114,8 +114,7 @@ static inline int cpipe_close(CPipe *pipe) {
 #ifdef _WIN32
     exit_code = _pclose(pipe->stream);
     pipe->stream = NULL;
-    pipe.hFile = INVALID_HANDLE_VALUE;
-    pipe.hProcess = NULL;
+    pipe->hFile = INVALID_HANDLE_VALUE;
 #else
     exit_code = pclose(pipe->stream);
     pipe->stream = NULL;
