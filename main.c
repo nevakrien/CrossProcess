@@ -8,6 +8,9 @@ int main() {
         fprintf(stderr, "Failed to open pipe.\n");
         return 1;
     }
+    if(pipe_is_done(&pipe)){
+        printf("pipe was done fast\n");
+    }
 
     char buffer[128];
     while (1) {
