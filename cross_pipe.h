@@ -3,18 +3,21 @@
 
 #include <stdio.h>
 
-#define LOG_ERROR(x) perror(x);
-
 #ifdef _WIN32
     #include <windows.h>
+    #include <io.h>
+    #include <fcntl.h>
+
     typedef struct {
         FILE *stream;       // File pointer for standard I/O
-        HANDLE process;     // Process handle for checking status
+        int fd;             // File descriptor
+        HANDLE hFile;       // File handle
     } Pipe;
 #else
     #include <sys/ioctl.h>
     #include <unistd.h>
     #include <errno.h>
+
     typedef struct {
         FILE *stream;       // File pointer for standard I/O
     } Pipe;
@@ -26,7 +29,11 @@ static inline Pipe pipe_open(const char *command, const char *mode) {
 #ifdef _WIN32
     pipe.stream = _popen(command, mode);
     if (pipe.stream) {
-        pipe.process = (HANDLE)_get_osfhandle(_fileno(pipe.stream));
+        pipe.fd = _fileno(pipe.stream);
+        pipe.hFile = (HANDLE)_get_osfhandle(pipe.fd);
+    } else {
+        pipe.fd = -1;
+        pipe.hFile = INVALID_HANDLE_VALUE;
     }
 #else
     pipe.stream = popen(command, mode);
@@ -37,9 +44,19 @@ static inline Pipe pipe_open(const char *command, const char *mode) {
 // Check how many bytes are available to read (non-blocking)
 static inline int pipe_available_bytes(Pipe *pipe) {
 #ifdef _WIN32
+    if (!pipe->stream || pipe->hFile == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "Invalid pipe handle.\n");
+        return -1;
+    }
+
     DWORD bytes_available = 0;
-    if (!PeekNamedPipe(pipe->process, NULL, 0, NULL, &bytes_available, NULL)) {
-        LOG_ERROR("PeekNamedPipe failed");
+    if (!PeekNamedPipe(pipe->hFile, NULL, 0, NULL, &bytes_available, NULL)) {
+        DWORD error = GetLastError();
+        if (error == ERROR_BROKEN_PIPE) {
+            // Pipe is closed, process likely finished
+            return 0;
+        }
+        fprintf(stderr, "PeekNamedPipe failed: %lu\n", error);
         return -1;
     }
     return (int)bytes_available;
@@ -47,40 +64,32 @@ static inline int pipe_available_bytes(Pipe *pipe) {
     int available = 0;
     int fd = fileno(pipe->stream); // Get the file descriptor
     if (ioctl(fd, FIONREAD, &available) == -1) {
-        LOG_ERROR("ioctl failed");
+        perror("ioctl failed");
         return -1;
     }
     return available;
 #endif
 }
 
+
 // Read data from the pipe (blocking)
 static inline size_t pipe_read(Pipe *pipe, char *buffer, size_t buffer_size) {
     return fread(buffer, 1, buffer_size, pipe->stream);
 }
 
-// Get the exit code of the process (after the pipe is closed)
-static inline int pipe_get_exit_code(Pipe *pipe) {
-#ifdef _WIN32
-    DWORD exit_code;
-    if (!GetExitCodeProcess(pipe->process, &exit_code)) {
-        LOG_ERROR("GetExitCodeProcess failed");
-        return -1;
-    }
-    return (int)exit_code;
-#else
-    LOG_ERROR("Exit code unavailable until pipe is closed.\n");
-    return -1;
-#endif
-}
-
-// Close the pipe
+// Close the pipe and get the exit code
 static inline int pipe_close(Pipe *pipe) {
+    int exit_code;
 #ifdef _WIN32
-    return _pclose(pipe->stream);
+    exit_code = _pclose(pipe->stream);
+    pipe->stream = NULL;
+    pipe->fd = -1;
+    pipe->hFile = INVALID_HANDLE_VALUE;
 #else
-    return pclose(pipe->stream);
+    exit_code = pclose(pipe->stream);
+    pipe->stream = NULL;
 #endif
+    return exit_code;
 }
 
 #endif // CROSS_PIPE_H
