@@ -108,6 +108,11 @@ static inline size_t cpipe_read(CPipe *pipe, char *buffer, size_t buffer_size) {
     return fread(buffer, 1, buffer_size, pipe->stream);
 }
 
+// Write data to the pipe (blocking)
+static inline size_t cpipe_write(CPipe *pipe, char *buffer, size_t buffer_size) {
+    return fwrite(buffer, 1, buffer_size, pipe->stream);
+}
+
 // Close the pipe and get the exit code
 static inline int cpipe_close(CPipe *pipe) {
     int exit_code;
