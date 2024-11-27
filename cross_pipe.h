@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#define LOG_ERROR(format, ...) //fprintf(stderr, format "\n", ##__VA_ARGS__)
+#define CPIPW_LOG_ERROR(format, ...) //fprintf(stderr, format "\n", ##__VA_ARGS__)
 
 #ifdef _WIN32
     #include <windows.h>
@@ -70,7 +70,7 @@ static inline CPipe cpipe_open(const char *command, const char *mode) {
 static inline int cpipe_available_bytes(CPipe *pipe) {
 #ifdef _WIN32
     if (!pipe->stream || pipe->hFile == INVALID_HANDLE_VALUE) {
-        LOG_ERROR("Invalid pipe handle.");
+        CPIPW_LOG_ERROR("Invalid pipe handle.");
         return -2; // Error
     }
 
@@ -81,7 +81,7 @@ static inline int cpipe_available_bytes(CPipe *pipe) {
             // Pipe is closed, process likely finished
             return EOF; // Done (EOF)
         }
-        LOG_ERROR("PeekNamedPipe failed: %lu", error);
+        CPIPW_LOG_ERROR("PeekNamedPipe failed: %lu", error);
         return -2; // Error
     }
 
@@ -93,7 +93,7 @@ static inline int cpipe_available_bytes(CPipe *pipe) {
         if (feof(pipe->stream)) {
             return EOF; // Done (EOF)
         }
-        LOG_ERROR("ioctl failed");
+        CPIPW_LOG_ERROR("ioctl failed");
         return -2; // Error
     }
 
