@@ -10,7 +10,6 @@
 
     typedef struct {
         FILE *stream;       // File pointer for standard I/O
-        int fd;             // File descriptor
         HANDLE hFile;       // File handle
     } Pipe;
 #else
@@ -29,10 +28,8 @@ static inline Pipe pipe_open(const char *command, const char *mode) {
 #ifdef _WIN32
     pipe.stream = _popen(command, mode);
     if (pipe.stream) {
-        pipe.fd = _fileno(pipe.stream);
-        pipe.hFile = (HANDLE)_get_osfhandle(pipe.fd);
+        pipe.hFile = (HANDLE)_get_osfhandle(_fileno(pipe.stream));
     } else {
-        pipe.fd = -1;
         pipe.hFile = INVALID_HANDLE_VALUE;
     }
 #else
@@ -83,7 +80,6 @@ static inline int pipe_close(Pipe *pipe) {
 #ifdef _WIN32
     exit_code = _pclose(pipe->stream);
     pipe->stream = NULL;
-    pipe->fd = -1;
     pipe->hFile = INVALID_HANDLE_VALUE;
 #else
     exit_code = pclose(pipe->stream);
